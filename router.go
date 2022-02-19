@@ -1,8 +1,8 @@
 package router
 
 import (
-	"fmt"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -10,21 +10,15 @@ const (
 )
 
 type router struct {
-	table map[string]map[string]http.Handler
+	table *tree
 }
 
 func New() *router {
-	return &router{table: make(map[string]map[string]http.Handler)}
+	return &router{table: NewTree()}
 }
 
 func (r *router) Handle(method, pattern string, h http.Handler) {
-	if _, ok := r.table[pattern]; !ok {
-		r.table[pattern] = make(map[string]http.Handler)
-	}
-	if _, ok := r.table[pattern][method]; ok {
-		panic(fmt.Sprintf("%s: handler already registered on [%s %s]", MOD, method, pattern))
-	}
-	r.table[pattern][method] = h
+	r.table.i(method, pattern, h)
 }
 
 func (r *router) HandleFunc(method, pattern string, hf http.HandlerFunc) {
@@ -35,15 +29,20 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	method := req.Method
 	path := req.URL.Path
 
-	ph, ok := r.table[path]
-	if !ok {
-		res.WriteHeader(http.StatusNotFound)
-		return
-	}
-	h, ok := ph[method]
-	if !ok {
-		res.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
+	h := r.table.lookup(method, path)
 	h.ServeHTTP(res, req)
+}
+
+// error handlers
+var err404 = http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(http.StatusNotFound)
+})
+
+type err405 struct {
+	allowedMethods []string
+}
+
+func (err err405) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	res.Header().Add("Allow", strings.Join(err.allowedMethods, ","))
+	res.WriteHeader(http.StatusMethodNotAllowed)
 }
