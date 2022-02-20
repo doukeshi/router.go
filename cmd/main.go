@@ -45,6 +45,10 @@ func main() {
 		log.Printf("--------")
 		fmt.Fprintf(rw, "pong")
 	})
+	v1.HandleFunc(http.MethodGet, "/:value", func(rw http.ResponseWriter, r *http.Request) {
+		log.Printf("[%s %s]", r.Method, r.URL.Path)
+		fmt.Fprintf(rw, "OK")
+	})
 
 	log.Fatal(http.ListenAndServe(":8000", r))
 }
